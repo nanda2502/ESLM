@@ -15,9 +15,9 @@ newtype AgentCompetence = AgentCompetence {
 } deriving (Show, Eq)
 
 createAgentCompetence :: Params -> AgentCompetence
-createAgentCompetence params =
-    let rows = n params
-        cols = num_nodes params
+createAgentCompetence Params{n, num_nodes} =
+    let rows = n
+        cols = num_nodes
         mat_bounds = ((1, 1), (rows, cols))
         emptyMatrix = array mat_bounds [((i, j), 0.0) | i <- [1..rows], j <- [1..cols]]
     in AgentCompetence emptyMatrix
@@ -27,11 +27,11 @@ newtype AgentWeights = AgentWeights {
 } deriving (Show, Eq)
 
 createAgentWeights :: Graph -> Params -> Int -> AgentWeights
-createAgentWeights Graph{adjMat} Params{n, num_nodes, agent_edge_mean, agent_edge_sigma} seed = 
+createAgentWeights Graph{adjMat} Params{n, num_nodes, agent_edge_mean, agent_edge_sd} seed = 
     let zero3DMatrix = array ((1, 1, 1), (n, num_nodes, num_nodes)) [((i, j, k), 0.0) | i <- [1..n], j <- [1..num_nodes], k <- [1..num_nodes]]
         initialWeightsMatrix = foldl' (\acc ((i, j), w) -> accum (\_ x -> x) acc [((nIndex, i, j), w) | nIndex <- [1..n]]) zero3DMatrix (assocs adjMat)
 
-        randomValues = drop num_nodes $ mkNormals' (agent_edge_mean, agent_edge_sigma) seed
+        randomValues = drop num_nodes $ mkNormals' (agent_edge_mean, agent_edge_sd) seed
         ((_, _, _), (_, r, c)) = bounds initialWeightsMatrix
         indexedRandomValues = zip [(i, j, k) | i <- [1..n], j <- [1..r], k <- [1..c]] randomValues
 

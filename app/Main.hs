@@ -8,7 +8,7 @@ import Data.Array.Unboxed (bounds, (!))
 
 main :: IO ()
 main = do
-    let params = Params {n = 100, num_nodes = 16, edge_mean = 0.5, edge_sigma = 0.2, edge_threshold = 0.4, agent_edge_mean = 0.0, agent_edge_sigma = 0.1}
+    let params = Params {n = 100, num_nodes = 16, edge_mean = 0.5, edge_sd = 0.2, edge_threshold = 0.4, agent_edge_mean = 0.0, agent_edge_sd = 0.1}
     let seed = 12345
     let graph = initializeGraph seed params
     let agentWeights = createAgentWeights graph params seed
