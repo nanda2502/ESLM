@@ -5,6 +5,7 @@ import Data.Random.Normal (mkNormals')
 import Data.Maybe (fromMaybe)
 import Params 
 import Data.Array.Unboxed
+import Utils (Matrix2D)
 
 createEdges::Params -> [(Int,Int)]
 createEdges Params{num_nodes} = [(i, j) | i <- [1..num_nodes], j <- [(i+1)..num_nodes]]
@@ -22,8 +23,6 @@ createParents edgeList Params{num_nodes} =
     let allNodes = [1..num_nodes]
     in [(node, findParents node edgeList) | node <- allNodes]
     where findParents node e = [i | (i,j,_) <- e, j == node]
-
-type Matrix2D = UArray (Int, Int) Double
 
 data Graph = Graph {
     adjMat :: Matrix2D,

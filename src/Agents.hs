@@ -1,75 +1,70 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Agents where
 
-import LearningEnvironment (Graph(..), Matrix2D)
+import LearningEnvironment (Graph(..))
 import Params 
 import Data.Array.Unboxed
 import Data.List (foldl')
 import Data.Random.Normal (mkNormals')
-import Text.Printf (printf)
+import Utils (Matrix2D, Matrix3D)
 
-type Matrix3D = UArray (Int, Int, Int) Double
-
-newtype AgentCompetence = AgentCompetence {
-    competenceMatrix :: Matrix2D
-} deriving (Show, Eq)
-
-createAgentCompetence :: Params -> AgentCompetence
-createAgentCompetence Params{n, num_nodes} =
+createAgentCompetence :: Graph -> Params -> Int -> UArray (Int, Int) Double
+createAgentCompetence Graph{adjMat} Params{n, num_nodes, agent_competence_sd} seed =
     let rows = n
         cols = num_nodes
         mat_bounds = ((1, 1), (rows, cols))
-        emptyMatrix = array mat_bounds [((i, j), 0.0) | i <- [1..rows], j <- [1..cols]]
-    in AgentCompetence emptyMatrix
+        indegreeSums = elems $ colSums adjMat
+        maxSum = maximum indegreeSums
+        minSum = minimum indegreeSums
+        normalizedIndegree = map (\x -> (x - minSum) / (maxSum - minSum)) indegreeSums
+        meanCompetence = map (1 -) normalizedIndegree
+        randomValues = mkNormals' (0, agent_competence_sd) seed
+        competenceValues = [max 0.0 (meanCompetence !! (j - 1) + rand) | ((_, j), rand) <- zip (range mat_bounds) randomValues]
+        competenceMatrix = array mat_bounds (zip (range mat_bounds) competenceValues) :: UArray (Int, Int) Double
+    in competenceMatrix
 
-newtype AgentWeights = AgentWeights {
-    weightMatrix :: Matrix3D
+data AgentWeights = AgentWeights {
+    edgeMatrix :: Matrix3D,
+    nodeMatrix :: Matrix2D
 } deriving (Show, Eq)
 
 createAgentWeights :: Graph -> Params -> Int -> AgentWeights
-createAgentWeights Graph{adjMat} Params{n, num_nodes, agent_edge_mean, agent_edge_sd} seed = 
+createAgentWeights Graph{adjMat} Params{n, num_nodes, agent_edge_mean, agent_edge_sd, agent_node_mean, agent_node_sd} seed = 
     let zero3DMatrix = array ((1, 1, 1), (n, num_nodes, num_nodes)) [((i, j, k), 0.0) | i <- [1..n], j <- [1..num_nodes], k <- [1..num_nodes]]
+        
         initialWeightsMatrix = foldl' (\acc ((i, j), w) -> accum (\_ x -> x) acc [((nIndex, i, j), w) | nIndex <- [1..n]]) zero3DMatrix (assocs adjMat)
 
-        randomValues = drop num_nodes $ mkNormals' (agent_edge_mean, agent_edge_sd) seed
+        randomValuesEdge = mkNormals' (agent_edge_mean, agent_edge_sd) seed
         ((_, _, _), (_, r, c)) = bounds initialWeightsMatrix
-        indexedRandomValues = zip [(i, j, k) | i <- [1..n], j <- [1..r], k <- [1..c]] randomValues
+        indexedRandomValuesEdge = zip [(i, j, k) | i <- [1..n], j <- [1..r], k <- [1..c]] randomValuesEdge
 
         updateValue :: Double -> Double -> Double
-        updateValue val rand = let updated = max 0 (val + rand) in updated
+        updateValue val rand = max 0 (val + rand)
         
-        updatedEntries = [((i, j, k), updateValue (initialWeightsMatrix ! (i, j, k)) rand) | ((i, j, k), rand) <- indexedRandomValues, initialWeightsMatrix ! (i, j, k) /= 0]
+        updatedEntries = [((i, j, k), updateValue (initialWeightsMatrix ! (i, j, k)) rand) | ((i, j, k), rand) <- indexedRandomValuesEdge, initialWeightsMatrix ! (i, j, k) /= 0]
 
         randomizedWeightsMatrix = initialWeightsMatrix // updatedEntries
-    in AgentWeights randomizedWeightsMatrix
+        
+        randomValuesNode = mkNormals' (agent_node_mean, agent_node_sd) (seed + 1)
+        nodeMatrix = array ((1, 1), (n, num_nodes)) [((i, j), rand) | ((i, j), rand) <- zip [(i, j) | i <- [1..n], j <- [1..num_nodes]] randomValuesNode]
+    in AgentWeights randomizedWeightsMatrix nodeMatrix
 
-columnSums :: Matrix2D -> UArray Int Double
-columnSums mat =
+colSums :: Matrix2D -> UArray Int Double
+colSums mat =
     let (_, (nRows, nCols)) = bounds mat
         initialSums = array (1, nCols) [(j, 0.0) | j <- [1..nCols]]
         sums = accum (+) initialSums [(j, mat ! (i, j)) | i <- [1..nRows], j <- [1..nCols]]
     in sums
 
-{- todo: 
-    - createAgentCompetence needs to be changed to incorporate random initial values
-    - strategy: columnSums of the weight matrix gives the indegree of each node
-    - nodes with higher indegree should have lower initial competence
-    - we can use the inverse indegree to determine the average of the distribution from which the competence values are drawn (SD should be constant)
-    - The problem is, we need to somehow ensure that the competence values are scaled appropriately
-    - Either we can normalize the competence values into a predifined range, or we can scale the competence values by a predefined constant
-    - Either idea sounds like a bad headache later on
--}
+data AgentData = AgentData {
+    edge_weights :: Matrix3D,
+    node_weights :: Matrix2D,
+    competence :: Matrix2D
+} deriving (Show, Eq)
 
-extract2DSlice :: Matrix3D -> Int -> Matrix2D
-extract2DSlice matrix sliceIdx =
-    let ((_, _, _), (_, numRows, numCols)) = bounds matrix
-        sliceBounds = ((1, 1), (numRows, numCols))
-        sliceElems = [((i, j), matrix ! (sliceIdx, i, j)) | i <- [1..numRows], j <- [1..numCols]]
-    in array sliceBounds sliceElems
-
-print2DMatrix :: Matrix2D -> IO ()
-print2DMatrix matrix =
-    let ((_, _), (numRows, numCols)) = bounds matrix
-        rows = [[matrix ! (i, j) | j <- [1..numCols]] | i <- [1..numRows]]
-    in mapM_ (putStrLn . unwords . map (\x -> if x == 0 then " . " else printf "%.1f" x)) rows
+initializeAgents :: Graph -> Params -> Int -> AgentData
+initializeAgents graph params seed =
+    let agentWeights = createAgentWeights graph params seed
+        agentCompetence = createAgentCompetence graph params seed
+    in AgentData (edgeMatrix agentWeights) (nodeMatrix agentWeights) agentCompetence
 

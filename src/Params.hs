@@ -7,6 +7,9 @@ data Params = Params {
     edge_sd :: Double,
     edge_threshold :: Double,
     agent_edge_mean :: Double,
-    agent_edge_sd :: Double
+    agent_edge_sd :: Double,
+    agent_node_mean :: Double,
+    agent_node_sd :: Double,
+    agent_competence_sd :: Double
 } deriving (Show, Eq)
 
