@@ -10,6 +10,7 @@ data Params = Params {
     agent_edge_sd :: Double,
     agent_node_mean :: Double,
     agent_node_sd :: Double,
-    agent_competence_sd :: Double
+    agent_competence_sd :: Double,
+    cor_age_competence :: Double
 } deriving (Show, Eq)
 

@@ -17,7 +17,8 @@ main = do
         agent_edge_sd = 0.1,
         agent_node_mean = 0.0,
         agent_node_sd = 0.1,
-        agent_competence_sd = 0.1
+        agent_competence_sd = 0.1,
+        cor_age_competence = 0.5
     }
     let seed = 12345
     let graph = initializeGraph seed params
@@ -34,7 +35,12 @@ main = do
     print2DMatrix (node_weights agentData)
 
     putStrLn "\nCompetence:"
-    print2DMatrix (competence agentData)
+    print2DMatrix (competences agentData)
+
+    putStrLn "\nAges:"
+    print (show (ages agentData))
+
+    putStrLn "\nAssortments:"
 
 
 
